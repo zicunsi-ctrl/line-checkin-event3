@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>活動無紙化簽到</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: white; padding: 30px 24px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
+    h2 { margin-top: 0; color: #1DB446; font-size: 24px; }
+    .info-group { margin: 20px 0; text-align: left; }
+    label { font-size: 14px; color: #666; font-weight: bold; margin-bottom: 6px; display: block; }
+    input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; transition: border 0.3s; }
+    input[type="text"]:focus { border-color: #1DB446; }
+    button { width: 100%; background-color: #1DB446; color: white; border: none; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+    button:disabled { background-color: #ccc; }
+    #status-text { margin-top: 15px; font-size: 14px; color: #666; word-break: break-all; }
+    .success-icon { font-size: 60px; color: #1DB446; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="card" id="main-card">
+  <h2>活動無紙化簽到</h2>
+  
+  <div id="loading-state">
+    <p id="loading-text">正在讀取您的 LINE 帳號資訊...</p>
+  </div>
+
+  <div id="form-state" style="display: none;">
+    <div class="info-group">
+      <label>您的姓名：</label>
+      <input type="text" id="user-name" placeholder="請輸入您的真實姓名">
+    </div>
+    <input type="hidden" id="user-id">
+    <button id="submit-btn" onclick="submitCheckin()">確認報到</button>
+  </div>
+
+  <div id="success-state" style="display: none;">
+    <div class="success-icon">✓</div>
+    <h3 style="color: #1DB446; margin: 0 0 10px 0;">報到成功！</h3>
+    <p style="color: #666; font-size: 14px;">感謝您的參與，請向工作人員出示此畫面。</p>
+  </div>
+
+  <div id="status-text"></div>
+</div>
+
+<script>
+// ================== 請在此填入您的參數 ==================
+const MY_LIFF_ID = '2010478658-U6kSmDVP'; 
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxYRaMG0xjS2cwdHkD9H_tZaQBgQxe7I3F1Yoiryl7O9X-7uqn3KiwS56frw05NnM11/exec'; 
+// =======================================================
+
+async function initializeLiff() {
+  try {
+    await liff.init({ liffId: MY_LIFF_ID });
+    
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    
+    const profile = await liff.getProfile();
+    document.getElementById('user-id').value = profile.userId;
+    if (!document.getElementById('user-name').value) {
+      document.getElementById('user-name').value = profile.displayName || '';
+    }
+    
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('form-state').style.display = 'block';
+  } catch (err) {
+    alert('LIFF 初始化失敗！\n代碼：' + err.code + '\n訊息：' + err.message + '\n詳細：' + JSON.stringify(err));
+    document.getElementById('loading-text').innerText = '載入失敗：' + (err.message || err);
+  }
+}
+
+async function submitCheckin() {
+  const name = document.getElementById('user-name').value.trim();
+  const userId = document.getElementById('user-id').value;
+  const btn = document.getElementById('submit-btn');
+  const status = document.getElementById('status-text');
+
+  if (!name) {
+    alert('請輸入姓名！');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = '處理中...';
+  status.innerText = '正在寫入簽到記錄...';
+
+  try {
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({ name: name, userId: userId })
+    });
+    
+    document.getElementById('form-state').style.display = 'none';
+    document.getElementById('success-state').style.display = 'block';
+    status.innerText = '';
+  } catch (error) {
+    alert('簽到失敗，請重新嘗試或洽工作人員！');
+    btn.disabled = false;
+    btn.innerText = '確認報到';
+    status.innerText = '發生錯誤，請重試。';
+  }
+}
+
+window.onload = function() {
+  initializeLiff();
+};
+</script>
+</body>
+</html>

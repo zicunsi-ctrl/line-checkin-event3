@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>活動無紙化簽到</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: white; padding: 32px 24px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
+    h2 { margin-top: 0; color: #1DB446; font-size: 24px; }
+    .info-group { margin: 16px 0; text-align: left; }
+    label { font-size: 14px; color: #666; font-weight: bold; margin-bottom: 6px; display: block; }
+    input[type="text"], input[type="email"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
+    input[type="text"]:focus, input[type="email"]:focus { border-color: #1DB446; }
+    button { width: 100%; background-color: #1DB446; color: white; border: none; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
+    button:disabled { background-color: #ccc; }
+    .success-icon { font-size: 60px; color: #1DB446; margin-bottom: 10px; }
+    #status-text { margin-top: 15px; font-size: 14px; color: #666; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>活動無紙化簽到</h2>
+  
+  <div id="loading-state">
+    <p id="loading-text">正在讀取您的 LINE 帳號資訊...</p>
+  </div>
+
+  <div id="form-state" style="display: none;">
+    <div class="info-group">
+      <label>LINE 暱稱：</label>
+      <input type="text" id="display-name" placeholder="讀取中...">
+    </div>
+    
+    <div class="info-group">
+      <label>Email 信箱：</label>
+      <input type="email" id="user-email" placeholder="請輸入或確認您的 Email">
+    </div>
+
+    <input type="hidden" id="user-id">
+    <button id="submit-btn" onclick="submitCheckin()">確認報到</button>
+  </div>
+
+  <div id="success-state" style="display: none;">
+    <div class="success-icon">✓</div>
+    <h3 style="color: #1DB446; margin: 0 0 10px 0;">報到成功！</h3>
+    <p style="color: #666; font-size: 14px;">感謝您的參與，請向現場工作人員出示此畫面。</p>
+  </div>
+
+  <div id="status-text"></div>
+</div>
+
+<script>
+// ================== 請填入本場次參數 ==================
+const MY_LIFF_ID = '填入您的LIFF_ID'; 
+const GAS_WEB_APP_URL = '填入您的GAS網址'; 
+// ====================================================
+
+async function initializeLiff() {
+  try {
+    await liff.init({ liffId: MY_LIFF_ID });
+    
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    
+    // 取得 LINE 暱稱與 UID
+    const profile = await liff.getProfile();
+    document.getElementById('user-id').value = profile.userId;
+    document.getElementById('display-name').value = profile.displayName || '';
+
+    // 嘗試自動取得 LINE 帳號綁定的 Email（若用戶有授權）
+    const userEmail = liff.getDecodedIDToken()?.email;
+    if (userEmail) {
+      document.getElementById('user-email').value = userEmail;
+    }
+    
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('form-state').style.display = 'block';
+  } catch (err) {
+    alert('LIFF 初始化失敗: ' + (err.message || err));
+    document.getElementById('loading-text').innerText = '載入失敗，請重新整理。';
+  }
+}
+
+async function submitCheckin() {
+  const displayName = document.getElementById('display-name').value.trim();
+  const email = document.getElementById('user-email').value.trim();
+  const userId = document.getElementById('user-id').value;
+  const btn = document.getElementById('submit-btn');
+  const status = document.getElementById('status-text');
+
+  if (!displayName) {
+    alert('請確認 LINE 暱稱！');
+    return;
+  }
+  if (!email) {
+    alert('請輸入 Email 信箱！');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = '處理中...';
+  status.innerText = '正在寫入簽到記錄...';
+
+  try {
+    await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        displayName: displayName,
+        email: email,
+        userId: userId
+      })
+    });
+    
+    document.getElementById('form-state').style.display = 'none';
+    document.getElementById('success-state').style.display = 'block';
+    status.innerText = '';
+  } catch (error) {
+    alert('簽到失敗，請重試！');
+    btn.disabled = false;
+    btn.innerText = '確認報到';
+    status.innerText = '寫入失敗，請洽現場工作人員。';
+  }
+}
+
+window.onload = initializeLiff;
+</script>
+</body>
+</html>
